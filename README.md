@@ -103,7 +103,7 @@ Por el momento el proyecto no requiere variables de entorno. Se documentarán aq
 1. Clonar el repositorio:
 
    ```bash
-   git clone https://github.com/kathar-cmd/Integradormoviles.git
+   git clone https://github.com/kathar-cmd/Integradorm3.git
    ```
 
 ---
