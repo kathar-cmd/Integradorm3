@@ -19,15 +19,25 @@ import com.vaadin.flow.component.tabs.TabSheet;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.example.service.PdfService;
+import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.server.StreamResource;
+import java.io.ByteArrayInputStream;
+import com.example.service.ExcelService;
+import java.util.List;
 
 @PageTitle("Sistema Prestamo de Libros CESDE - CRUD")
 @Route("")
 public class MainView extends VerticalLayout {
 
     private final CrudService crudService;
+    private final PdfService pdfService;
+    private final ExcelService excelService;
 
-    public MainView(CrudService crudService) {
+    public MainView(CrudService crudService, PdfService pdfService, ExcelService excelService) {
         this.crudService = crudService;
+        this.pdfService = pdfService;
+        this.excelService = excelService;
         setSizeFull();
         setPadding(true);
         setSpacing(true);
@@ -432,8 +442,65 @@ public class MainView extends VerticalLayout {
             limpiarForm.run();
             grid.asSingleSelect().clear();
         });
+        
+        Anchor descargaPdf = new Anchor();
+        descargaPdf.getElement().setAttribute("download", true);
+        descargaPdf.getStyle().set("display", "none");
 
-        layout.add(form, crearAcciones(btnCrear, btnConsultar, btnActualizar, btnEliminar, btnLimpiar), grid);
+        Button btnPdf = new Button("Comprobante PDF", e -> ejecutar(() -> {
+            Long id = idObligatorio(idField);
+            if (id == null) return;
+
+            Prestamo p = crudService.buscarPorId(Prestamo.class, id);
+            if (p == null) {
+                Notification.show("Préstamo no encontrado");
+                return;
+            }
+
+            Usuario u = p.getIdUsuario() != null
+                    ? crudService.buscarPorId(Usuario.class, p.getIdUsuario()) : null;
+            Libro l = p.getIdLibro() != null
+                    ? crudService.buscarPorId(Libro.class, p.getIdLibro()) : null;
+
+            byte[] pdf = pdfService.generarComprobante(p, u, l);
+
+            StreamResource recurso = new StreamResource(
+                    "comprobante-prestamo-" + p.getIdPrestamo() + ".pdf",
+                    () -> new ByteArrayInputStream(pdf));
+            recurso.setContentType("application/pdf");
+
+            descargaPdf.setHref(recurso);
+            descargaPdf.getElement().callJsFunction("click");
+            Notification.show("Comprobante generado");
+        }));
+
+        Anchor descargaExcel = new Anchor();
+        descargaExcel.getElement().setAttribute("download", true);
+        descargaExcel.getStyle().set("display", "none");
+
+        Button btnExcel = new Button("Exportar Excel", e -> ejecutar(() -> {
+            List<Prestamo> prestamos = crudService.listarTodos(Prestamo.class);
+
+            if (prestamos.isEmpty()) {
+                Notification.show("No hay préstamos para exportar");
+                return;
+            }
+
+            byte[] excel = excelService.exportarPrestamos(prestamos);
+
+            StreamResource recurso = new StreamResource(
+                    "prestamos.xlsx",
+                    () -> new ByteArrayInputStream(excel));
+            recurso.setContentType(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+
+            descargaExcel.setHref(recurso);
+            descargaExcel.getElement().callJsFunction("click");
+            Notification.show("Excel generado");
+        }));
+
+
+        layout.add(form, crearAcciones(btnCrear, btnConsultar, btnActualizar, btnEliminar, btnLimpiar, btnPdf, btnExcel), descargaPdf, descargaExcel, grid);
         return layout;
     }
 
